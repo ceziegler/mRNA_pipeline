@@ -17,6 +17,8 @@ include { UNTAR as UNTAR_HISAT2_INDEX       } from '../../../modules/nf-core/unt
 include { UNTAR as UNTAR_SALMON_INDEX       } from '../../../modules/nf-core/untar'
 include { UNTAR as UNTAR_KALLISTO_INDEX     } from '../../../modules/nf-core/untar'
 
+include { CONCATENATE_FASTA                 } from '../../../modules/local/concatenate_fasta'
+include { CONCATENATE_GTF                  } from '../../../modules/local/concatenate_gtf'
 include { CUSTOM_CATADDITIONALFASTA         } from '../../../modules/nf-core/custom/catadditionalfasta'
 include { CUSTOM_GETCHROMSIZES              } from '../../../modules/nf-core/custom/getchromsizes'
 include { GFFREAD                           } from '../../../modules/nf-core/gffread'
@@ -41,6 +43,7 @@ workflow PREPARE_GENOME {
     gtf                      //      file: /path/to/genome.gtf
     gff                      //      file: /path/to/genome.gff
     additional_fasta         //      file: /path/to/additional.fasta
+    plasmid_ref              //      file: /path/to/plasmid_ref/
     transcript_fasta         //      file: /path/to/transcript.fasta
     gene_bed                 //      file: /path/to/gene.bed
     splicesites              //      file: /path/to/splicesites.txt
@@ -65,7 +68,7 @@ workflow PREPARE_GENOME {
 
     main:
     ch_versions = Channel.empty()
-
+    
     //
     // Uncompress genome fasta file if required
     //
@@ -98,6 +101,17 @@ workflow PREPARE_GENOME {
             ch_versions = ch_versions.mix(GFFREAD.out.versions)
         }
 
+        // First, concatenate plasmid GTF if available
+        if (plasmid_ref) {
+            ch_plasmid_gtf = Channel.fromPath("${plasmid_ref}/*.{gtf,gff,gtf.gz,gff.gz}", checkIfExists: false)
+                .ifEmpty { Channel.empty() }
+            
+            if (!ch_plasmid_gtf.isEmpty()) {
+                ch_gtf = CONCATENATE_GTF ( ch_gtf, ch_plasmid_gtf.collect() ).gtf
+                ch_versions = ch_versions.mix(CONCATENATE_GTF.out.versions)
+            }
+        }
+
         // Determine whether to filter the GTF or not
         def filter_gtf =
             ((
@@ -116,6 +130,8 @@ workflow PREPARE_GENOME {
                 // Condition 4: --skip_gtf_filter is not provided
                 !skip_gtf_filter
             )
+        
+        // Only filter after concatenation is complete
         if (filter_gtf) {
             GTF_FILTER ( ch_fasta, ch_gtf )
             ch_gtf = GTF_FILTER.out.genome_gtf
@@ -126,6 +142,15 @@ workflow PREPARE_GENOME {
     //
     // Uncompress additional fasta file and concatenate with reference fasta and gtf files
     //
+    if (plasmid_ref) {
+        ch_plasmid_fasta = Channel.fromPath("${plasmid_ref}/*.{fa,fasta,fa.gz,fasta.gz}", checkIfExists: false)
+            .ifEmpty { Channel.empty() }
+        ch_fasta = CONCATENATE_FASTA ( ch_fasta, ch_plasmid_fasta.collect() ).fasta
+        ch_plasmid_gtf = Channel.fromPath("${plasmid_ref}/*.gtf{,.gz}", checkIfExists: false)
+            .ifEmpty { Channel.empty() }
+        ch_gtf = CONCATENATE_GTF ( ch_gtf, ch_plasmid_gtf.collect() ).gtf
+    }
+
     def biotype = gencode ? "gene_type" : featurecounts_group_type
     if (additional_fasta) {
         if (additional_fasta.endsWith('.gz')) {

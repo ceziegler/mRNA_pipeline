@@ -64,6 +64,7 @@ workflow NFCORE_RNASEQ {
         params.gtf,
         params.gff,
         params.additional_fasta,
+        params.plasmid_ref,
         params.transcript_fasta,
         params.gene_bed,
         params.splicesites,

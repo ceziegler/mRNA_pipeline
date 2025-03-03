@@ -65,6 +65,12 @@
                     "help_text": "This parameter is *mandatory* if `--genome` is not specified. If you don't have the appropriate alignment index available this will be generated for you automatically. Combine with `--save_reference` to save alignment index for future runs.",
                     "fa_icon": "far fa-file-code"
                 },
+                "plasmid_ref": {
+                    "type": "string",
+                    "format": "directory-path",
+                    "description": "Path to directory containing plasmid reference files (.fasta.gz and .gtf.gz).",
+                    "fa_icon": "fas fa-dna"
+                },
                 "gtf": {
                     "type": "string",
                     "format": "file-path",
