@@ -79,6 +79,12 @@ workflow PREPARE_GENOME {
         ch_fasta = Channel.value(file(fasta, checkIfExists: true))
     }
 
+    if (plasmid_ref) {
+        ch_plasmid_fasta = Channel.fromPath("${plasmid_ref}/*.{fa,fasta,fa.gz,fasta.gz}", checkIfExists: false)
+            .ifEmpty { Channel.empty() }
+        ch_fasta = CONCATENATE_FASTA ( ch_fasta, ch_plasmid_fasta.collect() ).fasta
+    }
+
     //
     // Uncompress GTF annotation file or create from GFF3 if required
     //
@@ -101,15 +107,11 @@ workflow PREPARE_GENOME {
             ch_versions = ch_versions.mix(GFFREAD.out.versions)
         }
 
-        // First, concatenate plasmid GTF if available
         if (plasmid_ref) {
-            ch_plasmid_gtf = Channel.fromPath("${plasmid_ref}/*.{gtf,gff,gtf.gz,gff.gz}", checkIfExists: false)
+
+            ch_plasmid_gtf = Channel.fromPath("${plasmid_ref}/*.gtf{,.gz}", checkIfExists: false)
                 .ifEmpty { Channel.empty() }
-            
-            if (!ch_plasmid_gtf.isEmpty()) {
-                ch_gtf = CONCATENATE_GTF ( ch_gtf, ch_plasmid_gtf.collect() ).gtf
-                ch_versions = ch_versions.mix(CONCATENATE_GTF.out.versions)
-            }
+            ch_gtf = CONCATENATE_GTF ( ch_gtf, ch_plasmid_gtf.collect() ).gtf
         }
 
         // Determine whether to filter the GTF or not
@@ -142,15 +144,7 @@ workflow PREPARE_GENOME {
     //
     // Uncompress additional fasta file and concatenate with reference fasta and gtf files
     //
-    if (plasmid_ref) {
-        ch_plasmid_fasta = Channel.fromPath("${plasmid_ref}/*.{fa,fasta,fa.gz,fasta.gz}", checkIfExists: false)
-            .ifEmpty { Channel.empty() }
-        ch_fasta = CONCATENATE_FASTA ( ch_fasta, ch_plasmid_fasta.collect() ).fasta
-        ch_plasmid_gtf = Channel.fromPath("${plasmid_ref}/*.gtf{,.gz}", checkIfExists: false)
-            .ifEmpty { Channel.empty() }
-        ch_gtf = CONCATENATE_GTF ( ch_gtf, ch_plasmid_gtf.collect() ).gtf
-    }
-
+    
     def biotype = gencode ? "gene_type" : featurecounts_group_type
     if (additional_fasta) {
         if (additional_fasta.endsWith('.gz')) {
